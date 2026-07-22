@@ -13,7 +13,7 @@ jobs:
     输入：:
       模式::
         描述：'运行模式': '运行模式'
-        必填: true: true
+        必填: required: true
         默认：'full': 'full'
         类型：选择: choice
         选项：:
