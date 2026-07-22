@@ -1,65 +1,64 @@
 name: 每日股票分析
+
 on:
   schedule:
     # 周一至周五 北京时间 09:00（UTC 01:00）
     - cron: '0 1 * * 1-5'
     # 周一至周五 北京时间 12:00（UTC 04:00）
-    - cron: '0 4 * * 1-5'
-  workflow_dispatch: # 保留手动触发
-jobs:
-  # 下方你的任务执行代码不变，无需改动
-  # 手动触发# 手动触发
-  工作流_派送::
-    输入：:
-      模式::
-        描述：'运行模式': '运行模式'
-        必填: required: true
-        默认：'full': 'full'
-        类型：选择: choice
-        选项：:
-          - 完整分析（股票+大盘）full          # 完整分析（股票+大盘）
-          - market-only   # 仅大盘复盘market-only   # 仅大盘复盘
-          - 仅股票分析stocks-only   # 仅股票分析
-      强制运行::
-        描述: '强制运行（跳过交易日检查）': '强制运行（跳过交易日检查）'
-        必填：否: false
-        默认：false: false
-        类型：布尔值: boolean
+  
+  
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '运行模式'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full          # 完整分析（股票+大盘）
+          - market-only   # 仅大盘复盘
+          - stocks-only   # 仅股票分析
+      force_run:
+        description: '强制运行（跳过交易日检查）'
+        required: false
+        default: false
+        type: boolean
 
 # 并发控制：同一时间只运行一个分析任务
-:
-  组: 股票分析: stock-analysis
-  取消正在进行中: 否: false
+concurrency:
+  group: stock-analysis
+  cancel-in-progress: false
 
-职位::
-  分析::
-    运行于: ubuntu-latest: ubuntu-latest
-    # 兼容误将 STOCK_LIST 配到同名 Environment variables 的场景；# 兼容误将 STOCK_LIST 配到同名 Environment variables 的场景；
-    # 推荐位置仍是 Settings -> Secrets and variables -> Actions -> Repository variables。# 推荐位置仍是 Settings -> Secrets and variables -> Actions -> Repository variables。
-    环境: 股票列表: STOCK_LIST
-    # 添加超时限制，防止任务卡死# 添加超时限制，防止任务卡死
-    超时分钟数: ${{ fromJSON(vars.ANALYSIS_TIMEOUT_MINUTES || '30') }}: ${{ fromJSON(vars.ANALYSIS_TIMEOUT_MINUTES || '30') }}
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    # 兼容误将 STOCK_LIST 配到同名 Environment variables 的场景；
+    # 推荐位置仍是 Settings -> Secrets and variables -> Actions -> Repository variables。
+    environment: STOCK_LIST
+    # 添加超时限制，防止任务卡死
+    timeout-minutes: ${{ fromJSON(vars.ANALYSIS_TIMEOUT_MINUTES || '30') }}
     
-    步骤：:
-      - name: 随机延迟（避免固定时间访问）name: 随机延迟（避免固定时间访问）
-        运行： sleep $((RANDOM % 60))  # 随机延迟0-60秒启动: sleep $((RANDOM % 60))  # 随机延迟0-60秒启动
+    steps:
+      - name: 随机延迟（避免固定时间访问）
+        run: sleep $((RANDOM % 60))  # 随机延迟0-60秒启动
       
-      - name: 检出代码name: 检出代码
-        用途：actions/checkout@v5: actions/checkout@v5
+      - name: 检出代码
+        uses: actions/checkout@v5
       
-      - name: 设置 Python 环境name: 设置 Python 环境
-        用途：actions/setup-python@v6: actions/setup-python@v6
-        与：:
-          python-version: '3.11': '3.11'
-          缓存：'pip': 'pip'
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
       
-      - name: 安装依赖name: 安装依赖
-        运行: |: |
-          使用pip升级pip：pip install --upgrade pip
-          使用pip安装 requirements.txt 中的依赖项：pip install -r requirements.txt
+      - name: 安装依赖
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
       
-      - name: 创建必要目录name: 创建必要目录
-        运行: |: |
+      - name: 创建必要目录
+        run: |
           mkdir -p data logs reports
       
       - name: 执行股票分析
@@ -419,7 +418,6 @@ jobs:
           elif [ -z "${STOCK_LIST:-}" ]; then
             export STOCK_LIST="600519"
           fi
-
           # 处理 LITELLM YAML 配置文件
           if [ -n "$LITELLM_CONFIG_YAML" ] && [ -n "$LITELLM_CONFIG" ]; then
             echo "📝 使用 GitHub Actions Secrets/Variables 中的 LITELLM_CONFIG_YAML 配置"
@@ -429,7 +427,6 @@ jobs:
             echo "$LITELLM_CONFIG_YAML" > "$LITELLM_CONFIG"
             echo "✅ LITELLM 配置文件已写入: $LITELLM_CONFIG"
           fi
-
           # 判断运行模式
           MODE="${{ github.event.inputs.mode || 'full' }}"
           
@@ -507,7 +504,6 @@ jobs:
             FORCE_RUN_ARG="--force-run"
             echo "⚡ 已启用强制运行模式（跳过交易日检查）"
           fi
-
           # 执行分析
           if [ "$MODE" = "market-only" ]; then
             python main.py --market-review $FORCE_RUN_ARG
